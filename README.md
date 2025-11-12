@@ -1,4 +1,4 @@
-# Tugas Individu 7 
+# Tugas Individu 7: Elemen Dasar Flutter
 
 ## 1. Apa itu Widget Tree di Flutter?
 
@@ -105,3 +105,58 @@ Keduanya adalah fitur yang mempercepat proses pengembangan di Flutter, tetapi be
 * **Apa yang terjadi:** Seluruh kode aplikasi dimuat ulang dari awal.
 * **State (Keadaan):** **State aplikasi hilang (reset).** Aplikasi akan kembali ke keadaan awalnya (initial state). Counter Anda akan kembali ke 0.
 * **Kapan digunakan:** Digunakan ketika perubahan kode terlalu besar untuk Hot Reload (misalnya, mengubah *global static fields* atau *constructors*), atau jika Hot Reload gagal, atau jika Anda memang ingin menguji alur aplikasi dari keadaan awal.
+
+---
+
+# Tugas Individu 8: Flutter Navigation, Layouts, Forms, and Input Elements
+
+## 1. Perbedaan Navigator.push() dan Navigator.pushReplacement()
+
+Perbedaan utama terletak pada **bagaimana cara mereka mengelola tumpukan (stack) navigasi halaman**:
+
+* **`Navigator.push()`**
+    * **Apa yang dilakukan:** Mendorong (push) halaman baru **di atas** halaman saat ini. Halaman lama (asal) masih ada di tumpukan, tepat di bawah halaman baru.
+    * **Konsekuensi:** Pengguna dapat menekan tombol "kembali" (baik di `AppBar` atau tombol fisik/gestur perangkat) untuk kembali (pop) ke halaman sebelumnya.
+    * **Contoh di Football Shop:** Ini digunakan di `menu.dart` saat menekan kartu "Create Product" dan di `left_drawer.dart` saat menekan menu "Tambah Produk". Keduanya memanggil `Navigator.push(context, ... ProductFormPage())`. Ini adalah pilihan yang tepat karena pengguna mungkin ingin **membatalkan** pengisian form dan **kembali** ke halaman utama (`MyHomePage`).
+
+* **`Navigator.pushReplacement()`**
+    * **Apa yang dilakukan:** Mendorong halaman baru dan **membuang** halaman saat ini dari tumpukan. Halaman baru tersebut **menggantikan** (replace) halaman lama.
+    * **Konsekuensi:** Pengguna **tidak bisa** menekan tombol "kembali" untuk kembali ke halaman sebelumnya, karena halaman tersebut sudah tidak ada di tumpukan.
+    * **Kapan digunakan di Football Shop:** Meskipun tidak digunakan secara eksplisit di kode Anda, `pushReplacement` ideal untuk situasi seperti *setelah pengguna berhasil login*. Anda tidak ingin pengguna menekan "kembali" dari homepage dan kembali ke halaman login.
+
+## 2. Pemanfaatan Hierarchy Widget (Scaffold, AppBar, Drawer)
+
+Struktur hierarki ini adalah kunci untuk menciptakan UI yang konsisten:
+
+1.  **`Scaffold`**: Bertindak sebagai "kerangka" atau "rangka" utama untuk setiap halaman. Ia menyediakan slot standar untuk elemen-elemen umum. Baik `MyHomePage` (di `menu.dart`) maupun `ProductFormPage` (di `productlist_form.dart`) sama-sama menggunakan `Scaffold` sebagai widget terluarnya.
+2.  **`AppBar`**: Ditempatkan di slot `appBar` milik `Scaffold`. Ini memberikan area branding dan judul yang konsisten di bagian atas setiap halaman. Meskipun judulnya berbeda ("NOPALZZZ SPORTY" vs. "Create Product"), posisinya dan fungsinya tetap sama.
+3.  **`Drawer`**: Ditempatkan di slot `drawer` milik `Scaffold`. Dengan menggunakan widget `LeftDrawer` yang sama di *kedua* halaman (`MyHomePage` dan `ProductFormPage`), kita memastikan bahwa pengguna selalu memiliki akses ke menu navigasi yang sama persis, di mana pun mereka berada di dalam aplikasi.
+
+Dengan menggunakan `Scaffold` sebagai fondasi dan memasukkan `AppBar` serta `LeftDrawer` yang sama di setiap halaman, aplikasi ini secara otomatis terasa familier dan mudah dinavigasi bagi pengguna.
+
+## 3. Kelebihan Layout Widget pada Form (Padding, SingleChildScrollView, ListView)
+
+Menggunakan widget layout yang tepat sangat penting saat membuat form untuk memastikan pengalaman pengguna yang baik (UX) dan menghindari error teknis.
+
+* **`Padding`**
+    * **Kelebihan:** Memberi "ruang napas" visual di sekitar elemen form. Ini mencegah field input dan tombol menempel langsung ke tepi layar atau menempel satu sama lain, sehingga form terlihat lebih rapi dan mudah dibaca.
+    * **Contoh Penggunaan:** Di `productlist_form.dart`, `SingleChildScrollView` memiliki `padding: const EdgeInsets.all(8.0)` untuk memberi jarak antara keseluruhan form dengan tepi layar. Di `menu.dart`, `Padding` juga digunakan di `body` `Scaffold`.
+
+* **`SingleChildScrollView`**
+    * **Kelebihan:** Ini adalah widget yang krusial untuk form. Kelebihan utamanya adalah **mencegah "Bottom Overflow Error"** (error piksel kuning-hitam). Saat pengguna mengetuk `TextFormField`, keyboard virtual akan muncul dan memakan ruang di layar. `SingleChildScrollView` memastikan bahwa *seluruh* form dapat di-scroll secara vertikal, sehingga pengguna tetap dapat melihat dan mengakses field yang mungkin tertutup oleh keyboard.
+    * **Contoh Penggunaan:** Di `productlist_form.dart`, seluruh `Form` dan `Column`-nya dibungkus (wrap) oleh `SingleChildScrollView`.
+
+* **`ListView`**
+    * **Kelebihan:** Mirip dengan `SingleChildScrollView`, `ListView` menyediakan konten yang dapat di-scroll. Namun, `ListView` secara khusus dioptimalkan untuk menampilkan *daftar* item, terutama jika daftarnya bisa sangat panjang.
+    * **Contoh Penggunaan:** Di `left_drawer.dart`, menu navigasi (`DrawerHeader`, `ListTile`, `ListTile`) ditempatkan di dalam `ListView`. Ini memastikan bahwa jika menu navigasi suatu hari nanti memiliki banyak item, menu tersebut dapat di-scroll dan tidak akan overflow.
+
+## 4. Penyesuaian Warna Tema (Theme)
+
+Identitas visual yang konsisten dicapai dengan mendefinisikan skema warna terpusat di widget root aplikasi, yaitu `MaterialApp`.
+
+1.  **Definisi Terpusat:** Di file `main.dart`, widget `MyApp` mengembalikan `MaterialApp`. Di sinilah kita mengatur properti `theme`.
+2.  **`ThemeData` dan `colorScheme`:** Kita memberikan `ThemeData` ke properti `theme`. Di dalamnya, kita mengatur `colorScheme` menggunakan `ColorScheme.fromSwatch(primarySwatch: Colors.blue)`. Ini memberitahu Flutter untuk secara otomatis menghasilkan seluruh palet warna (warna primer, warna sekunder, warna latar, warna teks, dll.) hanya berdasarkan satu warna dasar (`Colors.blue`).
+3.  **Penggunaan di Widget Lain:** Keuntungannya adalah widget lain di seluruh aplikasi dapat "meminta" warna tema ini. Contohnya, `AppBar` di `MyHomePage` (`menu.dart`) mengatur warnanya menggunakan `backgroundColor: Theme.of(context).colorScheme.primary`.
+4.  **Konsistensi:** Jika kita ingin mengubah brand toko dari biru menjadi hijau, kita hanya perlu mengubah `primarySwatch: Colors.blue` di `main.dart` menjadi `primarySwatch: Colors.green`. `AppBar` di `MyHomePage` akan otomatis ikut berubah menjadi hijau tanpa perlu diedit manual, karena ia mengambil warna dari tema.
+
+---
