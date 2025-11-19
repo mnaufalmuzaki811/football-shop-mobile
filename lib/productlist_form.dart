@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:football_shop/left_drawer.dart';
+import 'dart:convert';
+import 'package:pbp_django_auth/pbp_django_auth.dart';
+import 'package:provider/provider.dart';
+import 'package:football_shop/screens/list_product.dart';
 
 class ProductFormPage extends StatefulWidget {
   const ProductFormPage({super.key});
@@ -25,6 +29,7 @@ class _ProductFormPageState extends State<ProductFormPage> {
 
   @override
   Widget build(BuildContext context) {
+    final request = context.watch<CookieRequest>();
     return Scaffold(
       appBar: AppBar(
         title: const Center(child: Text('Create Product')),
@@ -40,7 +45,6 @@ class _ProductFormPageState extends State<ProductFormPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
               // === Name (wajib) ===
               TextFormField(
                 decoration: InputDecoration(
@@ -149,34 +153,50 @@ class _ProductFormPageState extends State<ProductFormPage> {
                     backgroundColor: MaterialStateProperty.all(Colors.indigo),
                   ),
                   icon: const Icon(Icons.save),
-                  label: const Text("Simpan", style: TextStyle(color: Colors.white)),
-                  onPressed: () {
+                  label: const Text(
+                    "Simpan",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  onPressed: () async {
                     if (_formKey.currentState!.validate()) {
-                      showDialog(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          title: const Text('Produk berhasil disimpan!'),
-                          content: SingleChildScrollView(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Name: $_name'),
-                                Text('Price: $_price'),
-                                Text('Description: $_description'),
-                                Text('Category: ${_category ?? "-"}'),
-                                Text('Thumbnail: ${_thumbnail.isEmpty ? "-" : _thumbnail}'),
-                                Text('Featured: ${_isFeatured ? "Ya" : "Tidak"}'),
-                              ],
-                            ),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('OK'),
-                            ),
-                          ],
-                        ),
+                      // Kirim ke Django dan tunggu respons
+                      final response = await request.postJson(
+                        "http://10.0.2.2:8000/create-flutter/", // URL View baru tadi
+                        jsonEncode(<String, String>{
+                          'name': _name,
+                          'price': _price.toString(),
+                          'description': _description,
+                          // Kirim field opsional juga jika ada
+                          'category': _category ?? "new",
+                          'thumbnail': _thumbnail,
+                          'is_featured': _isFeatured.toString(),
+                          // Jika model Django membutuhkan field lain seperti stock/discount, tambahkan di sini
+                        }),
                       );
+
+                      if (context.mounted) {
+                        if (response['status'] == 'success') {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Produk baru berhasil disimpan!"),
+                            ),
+                          );
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ProductPage(),
+                            ), // Atau kembali ke Menu
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                "Terdapat kesalahan, silakan coba lagi.",
+                              ),
+                            ),
+                          );
+                        }
+                      }
                     }
                   },
                 ),

@@ -160,3 +160,103 @@ Identitas visual yang konsisten dicapai dengan mendefinisikan skema warna terpus
 4.  **Konsistensi:** Jika kita ingin mengubah brand toko dari biru menjadi hijau, kita hanya perlu mengubah `primarySwatch: Colors.blue` di `main.dart` menjadi `primarySwatch: Colors.green`. `AppBar` di `MyHomePage` akan otomatis ikut berubah menjadi hijau tanpa perlu diedit manual, karena ia mengambil warna dari tema.
 
 ---
+
+# Tugas 9: Integrasi Layanan Web Django dengan Aplikasi Flutter
+
+## 1. Mengapa perlu membuat model Dart saat mengambil/mengirim data JSON? Apa konsekuensinya jika tanpa model?
+
+Kita perlu membuat model Dart (seperti class `Product`) untuk mengubah data mentah (JSON) menjadi objek Dart yang terstruktur (*Plain Old Dart Object*).
+
+**Alasan utamanya adalah:**
+1.  **Type Safety (Keamanan Tipe):** Dart adalah bahasa yang *strongly-typed*. Dengan model, kita memastikan bahwa field seperti `price` selalu bertipe `int` dan `name` selalu `String`. Jika data JSON tidak sesuai, error akan terdeteksi lebih awal.
+2.  **Code Completion & Maintainability:** IDE (seperti VS Code) dapat memberikan saran (*autocomplete*) atribut yang tersedia, meminimalisir kesalahan pengetikan (*typo*) dibandingkan mengakses Map secara manual seperti `data['nma']`.
+3.  **Enkapsulasi Logika:** Logika konversi dari dan ke JSON (`fromJson` dan `toJson`) terpusat di dalam kelas model, membuat kode UI lebih bersih.
+
+**Konsekuensi jika langsung memetakan `Map<String, dynamic>`:**
+* **Rawan Error Runtime:** Kesalahan pengetikan kunci string (misal: `data['prce']`) tidak akan terdeteksi oleh *compiler*, dan baru akan menyebabkan *crash* saat aplikasi dijalankan.
+* **Validasi Manual yang Repot:** Kita harus memeriksa tipe data dan *nullability* secara manual di setiap tempat data digunakan.
+* **Sulit di-maintain:** Jika struktur JSON dari backend berubah, kita harus mencari dan mengubah string 'key' satu per satu di seluruh kode aplikasi.
+
+## 2. Fungsi package `http` dan `CookieRequest` serta perbedaannya
+
+* **package `http`:** Pustaka dasar untuk melakukan permintaan HTTP (GET, POST, dll). Sifatnya *stateless*, artinya tidak menyimpan informasi sesi (cookies) antar permintaan secara otomatis.
+* **`CookieRequest` (dari `pbp_django_auth`):** Kelas pembungkus (*wrapper*) yang dirancang khusus untuk menangani komunikasi dengan backend Django yang menggunakan autentikasi berbasis sesi.
+
+**Perbedaan Utamanya:**
+Perbedaan paling krusial ada pada **manajemen Cookie/Session**.
+* Saat login berhasil, Django mengirimkan `sessionid` via cookie.
+* Library `http` biasa tidak menyimpan cookie ini secara otomatis.
+* `CookieRequest` **menyimpan cookie** tersebut dan mengirimkannya kembali secara otomatis pada setiap request berikutnya (seperti saat *logout* atau menambah produk). Tanpa ini, Django akan menganggap setiap request berasal dari pengguna anonim (*anonymous user*).
+
+## 3. Mengapa `instance` CookieRequest perlu dibagikan ke semua komponen?
+
+Instance `CookieRequest` menyimpan **state** berupa cookies (token sesi login). Jika kita membuat instance baru (`new CookieRequest()`) di setiap halaman, maka instance baru tersebut cookie-nya masih kosong (belum login).
+
+Oleh karena itu, kita perlu membagikan **satu instance yang sama** (*Singleton pattern*) ke seluruh aplikasi menggunakan **Provider** di `main.dart`. Ini memastikan bahwa status login pengguna konsisten di Halaman Utama, Drawer, Form, maupun Daftar Produk.
+
+## 4. Jelaskan konfigurasi konektivitas (Django & Android)
+
+Agar Flutter (di Emulator Android) bisa berkomunikasi dengan Django (di localhost komputer), diperlukan konfigurasi:
+
+1.  **`ALLOWED_HOSTS` di Django:**
+    * Menambahkan `10.0.2.2`, `localhost`, dan `127.0.0.1`.
+    * **Alasan:** Django memvalidasi header `Host` demi keamanan. `10.0.2.2` adalah alamat khusus yang digunakan Emulator Android untuk mengakses localhost komputer host.
+2.  **CORS (Cross-Origin Resource Sharing):**
+    * Mengaktifkan `django-cors-headers`.
+    * **Alasan:** Flutter (terutama versi Web atau saat debugging) dianggap sebagai *origin* yang berbeda. Tanpa CORS, request akan diblokir oleh mekanisme keamanan browser/klien.
+3.  **Izin Akses Internet (Android):**
+    * Menambahkan `<uses-permission android:name="android.permission.INTERNET" />` di `AndroidManifest.xml`.
+    * **Alasan:** Android membatasi akses jaringan aplikasi secara default. Tanpa izin ini, aplikasi akan *crash* dengan error `SocketException`.
+
+**Akibat jika salah konfigurasi:**
+Aplikasi Flutter tidak akan bisa mengambil data, mengalami *connection refused*, atau mendapatkan respon error HTTP 400/403 dari server.
+
+## 5. Mekanisme pengiriman data (Input -> Tampil)
+
+1.  **Input:** Pengguna mengisi form di Flutter (nama, harga, deskripsi).
+2.  **Serialisasi:** Data form diubah menjadi format JSON di Flutter.
+3.  **Kirim (POST):** Menggunakan `request.postJson`, data dikirim ke endpoint Django (misal: `/create-flutter/`).
+4.  **Proses Django:** View Django menerima JSON, memvalidasi, membuat objek Model, dan menyimpannya ke database.
+5.  **Fetch (GET):** Di halaman daftar, Flutter meminta data via `request.get` ke endpoint JSON.
+6.  **Deserialisasi:** Flutter menerima JSON, lalu model `Product.fromJson` mengubahnya menjadi list objek Dart.
+7.  **Tampil:** Widget `FutureBuilder` dan `ListView` menampilkan data objek tersebut ke layar.
+
+## 6. Mekanisme Autentikasi (Login, Register, Logout)
+
+1.  **Register:**
+    * Flutter mengirim data (username, password) ke endpoint `/auth/register/`.
+    * Django membuat akun `User` baru di database. Jika sukses, user diarahkan ke Login.
+2.  **Login:**
+    * Flutter mengirim kredensial ke `/auth/login/`.
+    * Django memverifikasi akun. Jika valid, fungsi `login()` dijalankan untuk membuat sesi.
+    * **PENTING:** Django merespon dengan header `Set-Cookie` berisi `sessionid`.
+    * `CookieRequest` di Flutter menangkap dan menyimpan cookie ini.
+3.  **Logout:**
+    * Flutter mengirim request ke `/auth/logout/`. Cookie sesi ikut terkirim otomatis oleh `CookieRequest`.
+    * Django mengenali sesi, lalu menghapusnya di server (`logout()`).
+    * Flutter menghapus cookie lokal dan mengarahkan user kembali ke halaman Login.
+
+## 7. Implementasi Checklist secara Step-by-Step
+
+1.  **Persiapan Backend (Django):**
+    * Install `django-cors-headers`.
+    * Konfigurasi `settings.py`: Tambahkan `corsheaders` ke `INSTALLED_APPS`, middleware `CorsMiddleware`, dan update `ALLOWED_HOSTS` dengan `10.0.2.2`.
+    * Buat view API (`login_ajax`, `register_ajax`, `logout_ajax`, `create_product_flutter`) yang merespon JSON.
+    * Setup routing URL di `urls.py`.
+
+2.  **Persiapan Frontend (Flutter):**
+    * Install package `provider` dan `pbp_django_auth`.
+    * Update `main.dart` untuk membungkus aplikasi dengan `Provider` yang menyediakan `CookieRequest`.
+    * Set `home` aplikasi ke `LoginPage`.
+
+3.  **Model Data:**
+    * Buat model `Product` di `lib/models/product.dart` berdasarkan struktur JSON dari Django (menggunakan Quicktype).
+
+4.  **Implementasi Fitur:**
+    * **Login & Register:** Buat screen form, gunakan `request.login` dan `request.post` untuk autentikasi.
+    * **List Produk:** Buat screen dengan `FutureBuilder` untuk fetch data (`request.get`).
+    * **Tambah Produk:** Hubungkan form yang sudah ada dengan endpoint Django via `request.postJson`.
+    * **Logout:** Tambahkan fungsi logout di `LeftDrawer` yang memanggil endpoint logout dan membersihkan navigasi.
+
+5.  **Integrasi:**
+    * Hubungkan semua halaman (Login -> Home -> List/Form) menggunakan `Navigator` dan `Drawer`.
